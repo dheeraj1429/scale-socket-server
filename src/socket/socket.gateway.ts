@@ -1,30 +1,30 @@
-import { EVENTS } from '@app/common';
 import { Inject, Logger } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import {
-  MessageBody,
-  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway()
-export class SocketGateway {
+export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(SocketGateway.name);
   @WebSocketServer() server: Server;
+  private connectedUsers: Map<string, any> = new Map();
 
   constructor(
     @Inject('SOCKET_SERVICE') protected readonly socketService: ClientKafka,
   ) {}
 
-  @SubscribeMessage(EVENTS.SEND_MESSAGE)
-  handleMessage(@MessageBody() message: string) {
-    this.logger.log(`handleMessage called: ${message}`);
-    this.socketService.emit(EVENTS.SEND_MESSAGE_TO_KAFKA, message);
+  handleConnection(client: Socket) {
+    const socketId = client.id;
+    this.connectedUsers[socketId] = socketId;
   }
 
-  handleSubscribeMessage(payload: any) {
-    this.server.emit(EVENTS.ON_SUBSCRIBE_MESSAGE, payload);
+  handleDisconnect(client: Socket) {
+    const socketId = client.id;
+    delete this.connectedUsers[socketId];
   }
 }
